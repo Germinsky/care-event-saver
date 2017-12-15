@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/hyperledger/fabric/core/chaincode/shim"
-	"github.com/golang/protobuf/proto"
+	//"github.com/golang/protobuf/proto"
 
 	pb "github.com/hyperledger/fabric/protos/peer"
 	"fmt"
@@ -12,6 +12,10 @@ import (
 type EventSaver struct {
 	logger *shim.ChaincodeLogger
 	dispatcher Dispatcher
+}
+
+type Event struct {
+	Id string `json:"id"`
 }
 
 func (p *EventSaver) Init(stub shim.ChaincodeStubInterface) pb.Response {
@@ -48,52 +52,36 @@ func (p *EventSaver) GetEvent(stub shim.ChaincodeStubInterface, args []string) p
 	}
 	p.logger.Infof("Getting event [%v] \n", string(eventJsonBytes))
 
-	var event Event
-	json.Unmarshal(eventJsonBytes, &event)
-
-	eventBytes, err := proto.Marshal(&event)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to marshall message: '%v'. Error: %v", event, err)
-		p.logger.Errorf(errMsg)
-		return shim.Error(errMsg)
-	}
-
-	return shim.Success(eventBytes)
+	return shim.Success(eventJsonBytes)
 }
 
 func (p *EventSaver) SaveEvent(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	encodedEventByteString := args[0]
-	p.logger.Infof("encodedEventByteString: %v", args[0])
-	event, err := p.DecodeProtoByteString(encodedEventByteString)
-	p.logger.Infof("event: %v", event)
+	jsonEvent := args[0]
 
-	if err != nil {
-		errMsg := fmt.Sprintf("Error while unmarshalling Event: %v", err.Error())
-		p.logger.Errorf(errMsg)
-		return shim.Error(errMsg)
-	}
-	jsonEvent, err := json.Marshal(&event)
+	event := Event{}
+	json.Unmarshal([]byte(jsonEvent), &event)
 
 	eventKey := "event:" + event.Id
 
-	err = stub.PutState(eventKey, jsonEvent)
+	p.logger.Infof("Putting event [%v] with key [%v] \n", jsonEvent, eventKey)
+	err := stub.PutState(eventKey, []byte(jsonEvent))
 	if err != nil {
 		errMsg := fmt.Sprintf("Error while saving patient '%v'. Error: %v", event, err)
 		p.logger.Errorf(errMsg)
 		return shim.Error(errMsg)
 	}
 
-	return shim.Success(jsonEvent)
+	return shim.Success([]byte(jsonEvent))
 }
 
-func (p *EventSaver) DecodeProtoByteString(encodedEventByteString string) (*Event, error) {
-	var err error
-
-	event := Event{}
-	err = proto.UnmarshalText(encodedEventByteString, &event)
-
-	return &event, err
-}
+//func (p *EventSaver) DecodeProtoByteString(encodedEventByteString string) (*Event, error) {
+//	var err error
+//
+//	event := Event{}
+//	err = proto.UnmarshalText(encodedEventByteString, &event)
+//
+//	return &event, err
+//}
 
 func main() {
 	err := shim.Start(new(EventSaver))
